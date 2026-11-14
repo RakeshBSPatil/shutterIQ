@@ -3,8 +3,7 @@ import pg from 'pg';
 import dotenv from 'dotenv';
 
 const envPath = fileURLToPath(new URL('../../.env', import.meta.url));
-const envExamplePath = fileURLToPath(new URL('../../.env.example', import.meta.url));
-dotenv.config({ path: [envPath, envExamplePath] });
+dotenv.config({ path: envPath });
 
 const { Pool } = pg;
 
@@ -13,12 +12,13 @@ function resolveConnectionString(rawUrl) {
   try {
     const parsed = new URL(rawUrl);
     // Direct db.<ref>.supabase.co hosts are IPv6-only on newer Supabase projects.
-    // Route known IPv6-only project host through its IPv4 Session Pooler automatically.
-    if (parsed.hostname === 'db.lbvhnavwrmzdwcbqjsjp.supabase.co') {
+    // Route direct Supabase DB hosts through an IPv4 Session Pooler automatically when needed.
+    const match = parsed.hostname.match(/^db\.([a-z0-9-]+)\.supabase\.co$/i);
+    if (match) {
       parsed.hostname =
         process.env.SUPABASE_POOLER_HOST || 'aws-0-ap-southeast-2.pooler.supabase.com';
       parsed.port = '5432';
-      parsed.username = 'postgres.lbvhnavwrmzdwcbqjsjp';
+      parsed.username = `postgres.${match[1]}`;
       return parsed.toString();
     }
   } catch {

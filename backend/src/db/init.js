@@ -5,10 +5,7 @@ import dotenv from 'dotenv';
 import { pool } from './pool.js';
 
 dotenv.config({
-  path: [
-    fileURLToPath(new URL('../../.env', import.meta.url)),
-    fileURLToPath(new URL('../../.env.example', import.meta.url)),
-  ],
+  path: fileURLToPath(new URL('../../.env', import.meta.url)),
 });
 
 const __filename = fileURLToPath(import.meta.url);

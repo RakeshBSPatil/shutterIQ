@@ -4,10 +4,7 @@ import { createApp } from './app.js';
 import { pool } from './db/pool.js';
 
 dotenv.config({
-  path: [
-    fileURLToPath(new URL('../.env', import.meta.url)),
-    fileURLToPath(new URL('../.env.example', import.meta.url)),
-  ],
+  path: fileURLToPath(new URL('../.env', import.meta.url)),
 });
 
 const PORT = Number(process.env.PORT) || 4000;
