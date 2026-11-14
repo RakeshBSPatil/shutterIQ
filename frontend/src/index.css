@@ -1,0 +1,81 @@
+@import 'leaflet/dist/leaflet.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 3px solid #10b981;
+    outline-offset: 2px;
+  }
+}
+
+/* Visually hidden utility keeping elements in the accessibility tree */
+.visually-hidden:where(:not(:focus-within, :active)) {
+  position: absolute !important;
+  clip-path: inset(50%) !important;
+  overflow: hidden !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  white-space: nowrap !important;
+}
+
+.skip-link:focus {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 9999;
+  background: #0b132b;
+  color: #ffffff;
+  padding: 0.65rem 1rem;
+  border-radius: 0.5rem;
+  border: 2px solid #10b981;
+  font-weight: 600;
+}
+
+/* Only show browser constraint error styling after user interaction */
+input:user-invalid,
+select:user-invalid,
+textarea:user-invalid {
+  border-color: #e11d48;
+}
+
+/* Semantic tab underline indicator (works in Forced Colors Mode too) */
+[role='tab'] {
+  position: relative;
+}
+
+[role='tab'][aria-selected='true']::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  border-block-end: 3px solid #10b981;
+}
+
+/* Responsive scrollable table wrapper */
+.table-wrapper {
+  overflow: auto;
+  max-inline-size: 100%;
+  container-type: inline-size;
+}
+
+.table-wrapper thead th {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+}
+
+/* Ensure Leaflet map tiles and controls stay beneath sticky app header */
+.leaflet-container {
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  z-index: 10;
+}
