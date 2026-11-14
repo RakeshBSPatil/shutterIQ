@@ -422,16 +422,22 @@ function clusterRidersIntoVehicles(riders, selectedVehicles, dest) {
     });
 
     for (const entry of riderEntries) {
-      let placed = false;
+      let bestOption = null;
+      let bestEffectiveDist = Infinity;
       for (const option of entry.dists) {
-        if (remainingCap[option.cIdx] > 0) {
-          clusters[option.cIdx].push(entry.rider);
-          remainingCap[option.cIdx] -= 1;
-          placed = true;
-          break;
+        if (remainingCap[option.cIdx] <= 0) continue;
+        const utilRatio =
+          clusters[option.cIdx].length / selectedVehicles[option.cIdx].capacity;
+        const effectiveDist = option.dist + 2.5 * utilRatio;
+        if (effectiveDist < bestEffectiveDist) {
+          bestEffectiveDist = effectiveDist;
+          bestOption = option;
         }
       }
-      if (!placed) {
+      if (bestOption) {
+        clusters[bestOption.cIdx].push(entry.rider);
+        remainingCap[bestOption.cIdx] -= 1;
+      } else {
         unassigned.push(entry.rider);
       }
     }

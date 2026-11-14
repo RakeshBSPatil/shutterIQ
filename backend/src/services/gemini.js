@@ -34,7 +34,12 @@ const SYSTEM_GUARDRAIL = [
 ].join(' ');
 
 function getGeminiConfig() {
-  const apiKey = process.env.GEMINI_API_KEY?.trim() || '';
+  const rawKey = process.env.GEMINI_API_KEY?.trim() || '';
+  const isPlaceholder =
+    !rawKey ||
+    rawKey.includes('your-gemini-api-key') ||
+    rawKey.includes('replace-with');
+  const apiKey = isPlaceholder ? '' : rawKey;
   const model = process.env.GEMINI_MODEL?.trim() || DEFAULT_MODEL;
   return { apiKey, model };
 }
@@ -124,8 +129,10 @@ async function requestGeminiModel(modelId, apiKey, body) {
     });
 
     if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      const err = new Error(`Gemini HTTP ${res.status}: ${errText.slice(0, 200)}`);
+      const errText = (await res.text().catch(() => ''))
+        .replace(/\s+/g, ' ')
+        .trim();
+      const err = new Error(`Gemini HTTP ${res.status}: ${errText.slice(0, 180)}`);
       err.status = res.status;
       throw err;
     }
@@ -423,27 +430,52 @@ function buildFallbackChatAnswer(safePlan, message) {
   const routes = safePlan.routes || [];
   const summary = safePlan.summary || {};
 
+  if (q.includes('risk') || q.includes('late') || q.includes('delay') || q.includes('buffer')) {
+    if (routes.length === 0) return 'No routes are active, so risk is 0%.';
+    const riskiest = [...routes].sort((a, b) => b.risk.score - a.risk.score)[0];
+    return `The highest lateness risk is on ${riskiest.vehicleName} (departs ${riskiest.departureTime}, arriving ${riskiest.arrivalTime}) at ${riskiest.risk.score}% (${riskiest.risk.level}), with a p80 delay of ${riskiest.risk.p80DelayMin} min against a ${safePlan.bufferMin} min buffer. Suggested extra buffer: +${riskiest.risk.suggestedExtraBufferMin} min.`;
+  }
+
+  if (
+    q.includes('45') ||
+    q.includes('longer') ||
+    q.includes('long') ||
+    q.includes('unassigned') ||
+    q.includes('capacity') ||
+    q.includes('seat')
+  ) {
+    const longStops = routes.flatMap((rt) =>
+      (rt.stops || [])
+        .filter((st) => st.rideMinutes > 45)
+        .map((st) => ({
+          vehicleName: rt.vehicleName,
+          riderFirstName: st.riderFirstName,
+          rideMinutes: st.rideMinutes,
+        }))
+    );
+    const unassignedCount = safePlan.unassignedCount ?? 0;
+    const unassignedText =
+      unassignedCount > 0
+        ? `${unassignedCount} rider(s) are unassigned`
+        : `0 riders are unassigned (${summary.assignedRiders ?? 0} assigned, ${summary.utilizationPct ?? 0}% active seat utilization)`;
+    const longText =
+      longStops.length > 0
+        ? `${longStops.length} rider(s) have rides over 45 min (peak ${summary.maxRideMin ?? 0} min; earliest pickup ${longStops[0].riderFirstName} on ${longStops[0].vehicleName} at ${longStops[0].rideMinutes} min).`
+        : `No riders travel longer than 45 min (peak ride is ${summary.maxRideMin ?? 0} min, average ${summary.avgRideMin ?? 0} min).`;
+    return `${unassignedText}. ${longText}`;
+  }
+
   if (q.includes('earliest') || q.includes('depart') || q.includes('first')) {
     if (routes.length === 0) return 'There are no active routes in this plan.';
     const earliest = [...routes].sort((a, b) =>
       a.departureTime.localeCompare(b.departureTime)
     )[0];
-    return `The earliest departure is ${earliest.vehicleName} at ${earliest.departureTime} (${earliest.riderCount} riders, arriving ${earliest.arrivalTime}).`;
-  }
-
-  if (q.includes('risk') || q.includes('late') || q.includes('delay') || q.includes('buffer')) {
-    if (routes.length === 0) return 'No routes are active, so risk is 0%.';
-    const riskiest = [...routes].sort((a, b) => b.risk.score - a.risk.score)[0];
-    return `The highest lateness risk is on ${riskiest.vehicleName} at ${riskiest.risk.score}% (${riskiest.risk.level}), with a p80 delay of ${riskiest.risk.p80DelayMin} min against a ${safePlan.bufferMin} min buffer. Suggested extra buffer: +${riskiest.risk.suggestedExtraBufferMin} min.`;
+    return `The earliest departure is ${earliest.vehicleName} at ${earliest.departureTime} (${earliest.riderCount} riders, ${earliest.distanceKm} km, arriving ${earliest.arrivalTime} under ${safePlan.conditions?.weather || 'clear'} weather).`;
   }
 
   if (q.includes('save') || q.includes('baseline') || q.includes('compare')) {
     const s = safePlan.savings || {};
     return `Compared with the sign-up-order roster baseline, this plan saves ${s.distanceSavedKm ?? 0} km (${s.distanceSavedPct ?? 0}%), ${s.vehicleMinutesSaved ?? 0} vehicle-minutes, and ${s.avgRideSavedMin ?? 0} min on average rider travel time.`;
-  }
-
-  if (q.includes('unassigned') || q.includes('capacity') || q.includes('seat')) {
-    return `${summary.assignedRiders ?? 0} riders are assigned across ${summary.vehiclesUsed ?? 0} vehicles (${summary.utilizationPct ?? 0}% active seat utilization), and ${safePlan.unassignedCount ?? 0} riders are unassigned.`;
   }
 
   return `${safePlan.planName} uses ${summary.vehiclesUsed ?? 0} vehicles for ${summary.assignedRiders ?? 0} riders to reach ${safePlan.destinationName} by ${safePlan.arrivalDeadline} (${safePlan.bufferMin} min buffer). Total distance is ${summary.totalDistanceKm ?? 0} km, average ride is ${summary.avgRideMin ?? 0} min, and worst route risk is ${summary.worstRiskScore ?? 0}% (${summary.worstRiskLevel ?? 'low'}).`;
